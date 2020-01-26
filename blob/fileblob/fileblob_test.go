@@ -82,6 +82,11 @@ func (h *harness) serveSignedURL(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
+	contentType := r.URL.Query().Get("contentType")
+	if r.Header.Get("Content-Type") != contentType {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 
 	bucket, err := OpenBucket(h.dir, &Options{})
 	if err != nil {
@@ -100,7 +105,9 @@ func (h *harness) serveSignedURL(w http.ResponseWriter, r *http.Request) {
 		defer reader.Close()
 		io.Copy(w, reader)
 	case http.MethodPut:
-		writer, err := bucket.NewWriter(r.Context(), objKey, nil)
+		writer, err := bucket.NewWriter(r.Context(), objKey, &blob.WriterOptions{
+			ContentType: contentType,
+		})
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -256,7 +263,7 @@ func TestOpenBucketFromURL(t *testing.T) {
 		Want        string
 	}{
 		// Bucket doesn't exist -> error at construction time.
-		{"file:///bucket-not-found", "myfile.txt", true, false, ""},
+		{"file:///bucket-not-found", "", true, false, ""},
 		// File doesn't exist -> error at read time.
 		{"file://" + dirpath, "filenotfound.txt", false, true, ""},
 		// OK.
